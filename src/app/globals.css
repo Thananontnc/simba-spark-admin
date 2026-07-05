@@ -1,0 +1,253 @@
+@import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg:       #FAF9F6;   /* warm off-white canvas */
+  --surface:  #F9F8F5;   /* elegant warm white */
+  --subtle:   #F1EFEC;
+  --border:   rgba(228, 228, 231, 0.6); /* clean razor-thin gray */
+  --tx:       #27272a;   /* elegant dark slate */
+  --tx-2:     #71717a;   /* muted zinc */
+  --tx-3:     #a1a1aa;
+  --accent:   #f5841f;
+  --accent-2: #e8720d;
+  --accent-fg:#ffffff;
+  --sidebar:  #111111;
+  --sidebar-2:#1c1c1c;
+  --student-sidebar:  #FDFDFD;
+  --student-sidebar-2:#F4F3EF;
+  --empty-cell-bg: #FAF9F7;
+  --empty-cell-border: rgba(228, 228, 231, 0.6);
+  --empty-cell-border-today: rgba(228, 228, 231, 1);
+}
+
+.dark {
+  --bg:       #1E1D1B;   /* smooth warm charcoal */
+  --surface:  #22211F;   /* flat sophisticated container */
+  --subtle:   #2A2927;
+  --border:   rgba(63, 63, 70, 0.4); /* ultra-subtle border */
+  --tx:       #f2ede3;   /* soft cream-white */
+  --tx-2:     #a8a29e;   /* muted amber/gray */
+  --tx-3:     #78716c;   
+  --accent:   #f5841f;
+  --accent-2: #ff9a3f;
+  --accent-fg:#ffffff;
+  --sidebar:  #0a0a0a;
+  --sidebar-2:#141414;
+  --student-sidebar:  #1E1D1B;
+  --student-sidebar-2:#22211F;
+  --empty-cell-bg: transparent;
+  --empty-cell-border: rgba(63, 63, 70, 0.22);
+  --empty-cell-border-today: rgba(63, 63, 70, 0.35);
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--bg);
+  color: var(--tx);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Smooth anchor scrolling for the student dashboard's in-page nav. */
+html {
+  scroll-behavior: smooth;
+}
+
+* { box-sizing: border-box; }
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+/* Sidebar nav links */
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  color: rgba(255,255,255,0.5);
+  transition: background 0.1s, color 0.1s;
+  margin-bottom: 2px;
+}
+.sidebar-link:hover {
+  background: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.9);
+}
+.sidebar-link .sidebar-icon {
+  color: rgba(255,255,255,0.3);
+  transition: color 0.1s;
+}
+.sidebar-link:hover .sidebar-icon {
+  color: rgba(255,255,255,0.7);
+}
+.sidebar-signout {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  width: 100%;
+  color: rgba(255,255,255,0.35);
+  transition: background 0.1s, color 0.1s;
+}
+.sidebar-signout:hover {
+  background: rgba(255,255,255,0.05);
+  color: #f87171;
+}
+
+/* Premium UI Helpers */
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: var(--accent-fg);
+  box-shadow: 0 2px 8px rgba(245, 132, 31, 0.15);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+}
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(245, 132, 31, 0.3);
+  filter: brightness(1.05);
+}
+.btn-primary:active {
+  transform: translateY(0);
+}
+.btn-primary:disabled {
+  transform: none;
+  box-shadow: none;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: var(--subtle);
+  border: 1px solid var(--border);
+  color: var(--tx);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+}
+.btn-secondary:hover {
+  background: var(--border);
+  color: var(--tx);
+}
+
+.card-premium {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px; /* rounded-2xl-ish — soft luxury curves */
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.03), 0 2px 8px -1px rgba(0, 0, 0, 0.02);
+  transition: box-shadow 0.25s ease, border-color 0.25s ease;
+}
+.dark .card-premium {
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.3), 0 2px 8px -1px rgba(0, 0, 0, 0.2);
+}
+
+
+/* Page fade-in */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Input styles */
+.input-premium {
+  width: 100%;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.875rem;
+  outline: none;
+  border: 1px solid var(--border);
+  background: var(--subtle);
+  color: var(--tx);
+  transition: all 0.2s ease;
+}
+.input-premium:focus {
+  border-color: var(--accent);
+  background: var(--surface);
+  box-shadow: 0 0 0 2px rgba(245, 132, 31, 0.15);
+}
+
+/* ============================================================ */
+/* Student Schedule — calendar interactions                      */
+/* ============================================================ */
+
+/* Hovered block — a quiet lift, NOT a neon halo. We deliberately removed the
+   old 18px orange box-shadow (gaming/neon vibe). Now hover just nudges the
+   card up 1px and deepens its fill slightly. */
+.block-glow {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+}
+
+/* Admin override — NO animated ring. We replaced the pulsing box-shadow with a
+   quiet, static 3px orange LEFT border accent. Reads as "flagged" without the
+   gaming-room strobe. */
+.block-override {
+  border-left: 3px solid var(--accent) !important;
+}
+
+/* The "currently in session" card — a calm, solid orange fill so students can
+   instantly spot where they should be RIGHT NOW. Solid (not glowing). */
+.block-now {
+  border-color: var(--accent) !important;
+}
+.block-now .block-now__code { color: var(--accent-fg) !important; }
+.block-now .block-now__name { color: rgba(255,255,255,0.85) !important; }
+.block-now .block-now__time { color: rgba(255,255,255,0.7) !important; }
+
+/* Smooth expand/collapse for the in-card detail panel. We animate max-height
+   + opacity so the tap-to-reveal instructor/room info slides open. */
+.expand-panel {
+  overflow: hidden;
+  transition: max-height 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 0.2s ease,
+              margin-top 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* View-switch fade: re-triggered on weekly/monthly toggle. */
+@keyframes viewFade {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.view-fade {
+  animation: viewFade 0.25s ease forwards;
+}
+
+/* Credits tracking bar — animates its fill width on mount (spec: "animates
+   its progress fill when a new course is successfully locked in"). */
+@keyframes creditFill {
+  from { width: 0%; }
+}
+.credit-fill {
+  animation: creditFill 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Notification pulse — replaced the breathing box-shadow ring with a quiet,
+   static left-border accent. No neon. */
+.notif-pulse {
+  border-left: 3px solid var(--accent) !important;
+}
+
+/* Dismiss fade-out — collapses height + fades a notification card out. */
+@keyframes notifOut {
+  from { opacity: 1; transform: translateX(0); max-height: 200px; }
+  to   { opacity: 0; transform: translateX(8px); max-height: 0; padding-top: 0; padding-bottom: 0; margin-bottom: 0; }
+}
+.notif-out {
+  animation: notifOut 0.32s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  overflow: hidden;
+}
+
+
+
