@@ -124,6 +124,26 @@ export async function createCourseWithSection(formData: FormData) {
   return { success: true };
 }
 
+export async function createSection(formData: FormData) {
+  const course_id = parseInt(formData.get('course_id') as string);
+  const section_number = formData.get('section_number') as string;
+  const room = formData.get('room') as string;
+  const timeframe_id = formData.get('timeframe_id') as string;
+
+  if (!course_id || !section_number) return { error: 'Course and section number required.' };
+
+  try {
+    await sql`
+      INSERT INTO sections (course_id, section_number, room, timeframe_id)
+      VALUES (${course_id}, ${section_number}, ${room || null}, ${timeframe_id ? parseInt(timeframe_id) : null})
+    `;
+  } catch {
+    return { error: 'Failed to create section.' };
+  }
+  revalidatePath('/admin/courses');
+  return { success: true };
+}
+
 export async function deleteSection(formData: FormData) {
   const id = formData.get('id') as string;
   try {
@@ -176,5 +196,15 @@ export async function unenrollStudent(formData: FormData) {
     WHERE section_id = ${parseInt(section_id)} AND student_id = ${parseInt(student_id)}
   `;
   revalidatePath('/admin/courses');
+  return { success: true };
+}
+
+// ── A5: Toggle Authorization ─────────────────────────────────────────────────
+
+export async function toggleAuthorized(formData: FormData) {
+  const id = parseInt(formData.get('id') as string);
+  const current = formData.get('is_authorized') === 'true';
+  await sql`UPDATE users SET is_authorized = ${!current} WHERE id = ${id}`;
+  revalidatePath('/admin/users');
   return { success: true };
 }

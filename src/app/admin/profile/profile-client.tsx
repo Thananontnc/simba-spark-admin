@@ -99,16 +99,16 @@ export default function ProfileClient({ user }: { user: User }) {
         }} className="space-y-3">
           <div>
             <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--tx-2)' }}>Full Name</label>
-            <input name="full_name" required defaultValue={user.full_name} className={inp} style={inpStyle} />
+            <input name="full_name" required defaultValue={user.full_name} className="input-premium" />
           </div>
           <div>
             <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--tx-2)' }}>Email</label>
-            <input name="email" type="email" required defaultValue={user.email} className={inp} style={inpStyle} />
+            <input name="email" type="email" required defaultValue={user.email} className="input-premium" />
           </div>
           {profileMsg && <Alert type={profileMsg.type} msg={profileMsg.text} />}
           <button type="submit" disabled={profilePending}
-            className="px-4 py-2 rounded-lg text-sm font-medium"
-            style={{ background: 'var(--accent)', color: 'var(--accent-fg)', opacity: profilePending ? 0.6 : 1 }}>
+            className="px-4 py-2.5 rounded-xl text-sm font-medium btn-primary"
+            style={{ opacity: profilePending ? 0.6 : 1 }}>
             {profilePending ? 'Saving…' : 'Save Changes'}
           </button>
         </form>
@@ -139,7 +139,7 @@ export default function ProfileClient({ user }: { user: User }) {
                   required
                   minLength={name !== 'current_password' ? 8 : 1}
                   placeholder="••••••••"
-                  className={`${inp} pr-10`}
+                  className="input-premium pr-10"
                   style={inpStyle}
                 />
               </div>
@@ -152,8 +152,8 @@ export default function ProfileClient({ user }: { user: User }) {
           </label>
           {pwMsg && <Alert type={pwMsg.type} msg={pwMsg.text} />}
           <button type="submit" disabled={pwPending}
-            className="px-4 py-2 rounded-lg text-sm font-medium"
-            style={{ background: 'var(--accent)', color: 'var(--accent-fg)', opacity: pwPending ? 0.6 : 1 }}>
+            className="px-4 py-2.5 rounded-xl text-sm font-medium btn-primary"
+            style={{ opacity: pwPending ? 0.6 : 1 }}>
             {pwPending ? 'Updating…' : 'Update Password'}
           </button>
         </form>

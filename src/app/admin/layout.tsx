@@ -1,9 +1,14 @@
 import { auth, signOut } from '@/auth';
 import { ThemeToggle } from '@/components/theme-toggle';
 import Sidebar from './sidebar';
+import sql from '@/lib/db';
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
+  const userId = parseInt(session!.user.id);
+
+  // Fetch live from DB so sidebar reflects profile edits without re-login
+  const [user] = await sql`SELECT full_name, email FROM users WHERE id = ${userId}`;
 
   async function handleSignOut() {
     'use server';
@@ -14,8 +19,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <div className="min-h-screen flex" style={{ background: 'var(--bg)', color: 'var(--tx)' }}>
 
       <Sidebar
-        userName={session?.user?.name ?? ''}
-        userEmail={session?.user?.email ?? ''}
+        userName={(user?.full_name as string) ?? ''}
+        userEmail={(user?.email as string) ?? ''}
         signOutAction={handleSignOut}
       />
 
