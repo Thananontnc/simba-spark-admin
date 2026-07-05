@@ -1,7 +1,7 @@
 'use server';
 
 import bcrypt from 'bcrypt';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import sql from '@/lib/db';
 import { auth } from '@/auth';
 
@@ -22,6 +22,7 @@ export async function updateProfile(formData: FormData) {
   }
 
   revalidatePath('/admin/profile');
+  revalidateTag(`user-${id}`, 'pages');
   return { success: true };
 }
 

@@ -1,12 +1,27 @@
 import { Pool } from 'pg';
 
+// Strip sslmode from the URL — the `ssl` option below controls SSL, and pg v8
+// logs a security warning whenever sslmode=require appears in the string.
+const connectionString = process.env.DATABASE_URL
+  ?.replace(/([?&])sslmode=[^&]*&?/, '$1')
+  .replace(/[?&]$/, '');
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString,
   ssl: process.env.DATABASE_URL?.includes('neon.tech')
     ? { rejectUnauthorized: false }
     : false,
-  max: 1,
+  max: 5,
+  // Recycle idle connections before Neon closes them server-side (~5 min),
+  // otherwise queries hang forever on a dead socket.
+  idleTimeoutMillis: 30_000,
+  // Neon free tier suspends compute; cold start can take 5–15s.
+  connectionTimeoutMillis: 30_000,
+  keepAlive: true,
 });
+
+// Fail fast instead of hanging if a connection dies mid-query.
+pool.on('error', () => { /* dead idle connection removed from pool */ });
 
 const sql = async (strings: TemplateStringsArray, ...values: unknown[]) => {
   const query = strings.reduce((acc, str, i) => acc + str + (i < values.length ? `$${i + 1}` : ''), '');

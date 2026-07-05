@@ -8,13 +8,15 @@ import { Toast } from '@/components/toast';
 type Course = { id: number; course_name: string; course_code: string; credits: number };
 type Timeframe = { id: number; label: string };
 
-export default function CreateSectionForm({ courses, timeframes }: { courses: Course[]; timeframes: Timeframe[] }) {
+export default function CreateSectionForm({ courses, timeframes, defaultTimeframeId, onSuccess }: {
+  courses: Course[]; timeframes: Timeframe[]; defaultTimeframeId?: number; onSuccess?: () => void;
+}) {
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Course | null>(null);
   const [dropOpen, setDropOpen] = useState(false);
   const [sectionNo, setSectionNo] = useState('');
   const [room, setRoom] = useState('');
-  const [timeframeId, setTimeframeId] = useState('');
+  const [timeframeId, setTimeframeId] = useState(defaultTimeframeId ? String(defaultTimeframeId) : '');
   const [error, setError] = useState('');
   const [toast, setToast] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -65,7 +67,7 @@ export default function CreateSectionForm({ courses, timeframes }: { courses: Co
       if (result?.error) { setError(result.error); return; }
       setToast('Section created.');
       reset();
-      router.refresh();
+      onSuccess?.();
     });
   }
 

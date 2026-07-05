@@ -2,13 +2,18 @@ import { auth, signOut } from '@/auth';
 import { ThemeToggle } from '@/components/theme-toggle';
 import Sidebar from './sidebar';
 import sql from '@/lib/db';
+import { unstable_cache } from 'next/cache';
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   const userId = parseInt(session!.user.id);
 
-  // Fetch live from DB so sidebar reflects profile edits without re-login
-  const [user] = await sql`SELECT full_name, email FROM users WHERE id = ${userId}`;
+  const getUser = unstable_cache(
+    async (id: number) => { const [u] = await sql`SELECT full_name, email FROM users WHERE id = ${id}`; return u; },
+    [`admin-user-${userId}`],
+    { tags: [`user-${userId}`], revalidate: 60 }
+  );
+  const user = await getUser(userId);
 
   async function handleSignOut() {
     'use server';

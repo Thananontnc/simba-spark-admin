@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from 'react';
 import { createUser, updateUser, deleteUser, toggleAuthorized } from '@/app/actions/admin';
-import { useRouter } from 'next/navigation';
 import { Toast } from '@/components/toast';
 
 type User = { id: number; full_name: string; email: string; role: string; is_authorized: boolean };
@@ -99,7 +98,6 @@ function UserForm({ defaultValues, hiddenId, onClose, action, onSuccess }: {
 }) {
   const [error, setError] = useState('');
   const [pending, startTransition] = useTransition();
-  const router = useRouter();
 
   return (
     <form onSubmit={e => {
@@ -109,7 +107,6 @@ function UserForm({ defaultValues, hiddenId, onClose, action, onSuccess }: {
         const result = await action(new FormData(e.currentTarget));
         if (result.error) { setError(result.error); return; }
         onSuccess?.();
-        router.refresh();
         onClose();
       });
     }} className="space-y-3.5">
@@ -157,7 +154,6 @@ export default function UsersPageClient({ users }: { users: User[] }) {
   const [pending, startTransition] = useTransition();
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
-  const router = useRouter();
 
   const filtered = users.filter(u => {
     const matchRole = roleFilter === 'all' || u.role === roleFilter;
@@ -171,10 +167,9 @@ export default function UsersPageClient({ users }: { users: User[] }) {
     startTransition(async () => {
       const fd = new FormData();
       fd.append('id', String(deleting.id));
-      await deleteUser(fd);
-      router.refresh();
+      const result = await deleteUser(fd);
       setDeleting(null);
-      setToast('User deleted.');
+      setToast(result.error ?? 'User deleted.');
     });
   }
 
@@ -254,7 +249,7 @@ export default function UsersPageClient({ users }: { users: User[] }) {
                   <td className="px-5 py-3 text-sm" style={{ color: 'var(--tx-2)' }}>{u.email}</td>
                   <td className="px-5 py-3"><RolePill role={u.role} /></td>
                   <td className="px-5 py-3">
-                    <form action={async (fd: FormData) => { await toggleAuthorized(fd); router.refresh(); }}
+                    <form action={async (fd: FormData) => { await toggleAuthorized(fd); }}
                       className="inline-flex">
                       <input type="hidden" name="id" value={u.id} />
                       <input type="hidden" name="is_authorized" value={String(u.is_authorized)} />
@@ -269,7 +264,7 @@ export default function UsersPageClient({ users }: { users: User[] }) {
                     </form>
                   </td>
                   <td className="px-5 py-3 text-right">
-                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center justify-end gap-1 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                       <button onClick={() => setEditing(u)}
                         className="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
                         style={{ background: 'var(--subtle)', color: 'var(--tx-2)', border: '1px solid var(--border)' }}>
@@ -310,7 +305,7 @@ export default function UsersPageClient({ users }: { users: User[] }) {
               <div className="flex gap-2 mt-3">
                 <button onClick={() => setEditing(u)}
                   className="flex-1 py-2 rounded-xl text-xs font-medium btn-secondary">Edit</button>
-                <form action={async (fd: FormData) => { await toggleAuthorized(fd); router.refresh(); }} className="flex-1">
+                <form action={async (fd: FormData) => { await toggleAuthorized(fd); }} className="flex-1">
                   <input type="hidden" name="id" value={u.id} />
                   <input type="hidden" name="is_authorized" value={String(u.is_authorized)} />
                   <button type="submit" className="w-full py-2 rounded-xl text-xs font-medium"

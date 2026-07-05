@@ -11,7 +11,9 @@ export default auth((req) => {
   const isAuthPage = pathname === '/login' || pathname === '/register';
   const isProtected = pathname.startsWith('/admin');
 
-  if (isAuthed && isAuthPage) {
+  // Only admins get bounced away from auth pages — non-admin sessions must be
+  // able to reach /login to sign in again, otherwise /admin <-> /login loops.
+  if (isAuthed && isAuthPage && role === 'admin') {
     return NextResponse.redirect(new URL('/admin', req.url));
   }
   if (!isAuthed && isProtected) {

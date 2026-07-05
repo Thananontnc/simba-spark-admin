@@ -7,7 +7,12 @@ import { Toast } from '@/components/toast';
 
 type Timeframe = { id: number; label: string; start_date: string; end_date: string };
 
-function today() { return new Date().toISOString().split('T')[0]; }
+// Local date, not UTC — toISOString() shifts back a day in UTC+ timezones.
+function toLocalISO(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function today() { return toLocalISO(new Date()); }
 
 function isWeekend(dateStr: string) {
   if (!dateStr) return false;
@@ -20,7 +25,7 @@ function nextMonday(dateStr: string) {
   const day = d.getDay();
   if (day === 0) d.setDate(d.getDate() + 1);
   if (day === 6) d.setDate(d.getDate() + 2);
-  return d.toISOString().split('T')[0];
+  return toLocalISO(d);
 }
 
 function fmt(d: string) {

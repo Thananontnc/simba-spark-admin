@@ -58,7 +58,7 @@ export default function Sidebar({ userName, userEmail, signOutAction }: Props) {
       style={{
         background: 'var(--sidebar-bg)',
         borderRight: '1px solid var(--sidebar-border)',
-        boxShadow: '2px 0 12px rgba(0,0,0,0.04)',
+        boxShadow: '2px 0 16px rgba(0,0,0,0.08)',
       }}>
 
       {/* Orange top accent bar */}
