@@ -179,9 +179,14 @@ export default function TimetableView({ bookings }: { bookings: TimetableBooking
                           boxShadow: '0 2px 10px rgba(245,132,31,0.35)',
                           zIndex: 2,
                         }}>
-                        <p className="text-[11px] font-extrabold leading-tight text-white tracking-wide truncate">
-                          {b.course_code}
-                        </p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-[11px] font-extrabold leading-tight text-white tracking-wide truncate">
+                            {b.course_code}
+                          </p>
+                          <span className="text-[9px] font-medium px-1 py-0.5 rounded shrink-0" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff' }}>
+                            {b.section_number}
+                          </span>
+                        </div>
                         {height > 50 && (
                           <p className="text-[10px] leading-tight truncate mt-0.5" style={{ color: 'rgba(255,255,255,0.82)' }}>
                             {b.course_name}
@@ -194,6 +199,26 @@ export default function TimetableView({ bookings }: { bookings: TimetableBooking
                             </svg>
                             <span className="text-[9px]" style={{ color: 'rgba(255,255,255,0.7)' }}>
                               {b.start_time.slice(0,5)}–{b.end_time.slice(0,5)}
+                            </span>
+                          </div>
+                        )}
+                        {height > 90 && b.instructor_name && (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <svg width="8" height="8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ color: 'rgba(255,255,255,0.7)', flexShrink: 0 }}>
+                              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                            </svg>
+                            <span className="text-[9px] truncate" style={{ color: 'rgba(255,255,255,0.7)' }}>
+                              {b.instructor_name}
+                            </span>
+                          </div>
+                        )}
+                        {height > 110 && b.room && (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <svg width="8" height="8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ color: 'rgba(255,255,255,0.7)', flexShrink: 0 }}>
+                              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+                            </svg>
+                            <span className="text-[9px] truncate" style={{ color: 'rgba(255,255,255,0.7)' }}>
+                              {b.room}
                             </span>
                           </div>
                         )}

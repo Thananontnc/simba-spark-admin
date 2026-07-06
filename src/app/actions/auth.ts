@@ -8,6 +8,10 @@ export async function registerUser(formData: FormData) {
   const password = formData.get('password') as string;
   const confirm = formData.get('confirm') as string;
 
+  if (!password || password.length < 8) {
+    return { error: 'Password must be at least 8 characters.' };
+  }
+
   if (password !== confirm) {
     return { error: 'Passwords do not match.' };
   }

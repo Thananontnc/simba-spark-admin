@@ -1,17 +1,28 @@
 'use server';
 
 import bcrypt from 'bcrypt';
-import { revalidatePath, revalidateTag } from 'next/cache';
+import { revalidatePath } from 'next/cache';
 import sql from '@/lib/db';
 import { auth } from '@/auth';
 
-export async function updateProfile(formData: FormData) {
+async function requireAdmin() {
   const session = await auth();
+  if ((session?.user as { role?: string } | undefined)?.role !== 'admin') {
+    throw new Error('Unauthorized');
+  }
+  return session!;
+}
+
+export async function updateProfile(formData: FormData) {
+  const session = await requireAdmin().catch(() => null);
   if (!session) return { error: 'Not authenticated.' };
 
   const id = parseInt(session.user.id);
   const full_name = formData.get('full_name') as string;
   const email = formData.get('email') as string;
+
+  if (!full_name?.trim()) return { error: 'Full name is required.' };
+  if (!email?.trim()) return { error: 'Email is required.' };
 
   try {
     await sql`UPDATE users SET full_name = ${full_name}, email = ${email} WHERE id = ${id}`;
@@ -22,12 +33,11 @@ export async function updateProfile(formData: FormData) {
   }
 
   revalidatePath('/admin/profile');
-  revalidateTag(`user-${id}`, 'pages');
   return { success: true };
 }
 
 export async function changePassword(formData: FormData) {
-  const session = await auth();
+  const session = await requireAdmin().catch(() => null);
   if (!session) return { error: 'Not authenticated.' };
 
   const id = parseInt(session.user.id);

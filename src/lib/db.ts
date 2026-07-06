@@ -29,4 +29,26 @@ const sql = async (strings: TemplateStringsArray, ...values: unknown[]) => {
   return rows;
 };
 
+type SqlFn = (strings: TemplateStringsArray, ...values: unknown[]) => Promise<Record<string, unknown>[]>;
+
+export async function withTransaction<T>(fn: (sql: SqlFn) => Promise<T>): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const txSql: SqlFn = async (strings, ...values) => {
+      const query = strings.reduce((acc, str, i) => acc + str + (i < values.length ? `$${i + 1}` : ''), '');
+      const { rows } = await client.query(query, values as unknown[]);
+      return rows;
+    };
+    const result = await fn(txSql);
+    await client.query('COMMIT');
+    return result;
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
 export default sql;

@@ -123,7 +123,8 @@ export default function BookingsClient({ bookings, sections }: { bookings: Booki
     });
   }, [bookings, search, dateFrom, dateTo]);
 
-  function handleDelete(id: number) {
+  function handleDelete(id: number, requireConfirm = false) {
+    if (requireConfirm && !confirm('Delete this booking?')) return;
     startTransition(async () => {
       const fd = new FormData(); fd.append('id', String(id));
       await deleteBooking(fd);
@@ -248,7 +249,7 @@ export default function BookingsClient({ bookings, sections }: { bookings: Booki
               </div>
               <p className="text-xs" style={{ color: 'var(--tx-2)' }}>{fmt(b.date)}{b.room ? ` · ${b.room}` : ''}</p>
               {b.instructor_name && <p className="text-xs mt-0.5" style={{ color: 'var(--tx-3)' }}>{b.instructor_name}</p>}
-              <button onClick={() => handleDelete(b.id)} disabled={pending}
+              <button onClick={() => handleDelete(b.id, true)} disabled={pending}
                 className="mt-3 px-3 py-1.5 rounded-lg text-xs font-medium btn-danger w-full" style={{ opacity: pending ? 0.6 : 1 }}>
                 Delete
               </button>

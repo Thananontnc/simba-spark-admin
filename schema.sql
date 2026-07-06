@@ -15,11 +15,24 @@ CREATE TABLE courses (
   credits INT
 );
 
+CREATE TABLE semesters (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE TABLE timeframes (
   id SERIAL PRIMARY KEY,
   label TEXT NOT NULL,
   start_date DATE NOT NULL,
-  end_date DATE NOT NULL
+  end_date DATE NOT NULL,
+  semester_id INT REFERENCES semesters(id)
+);
+
+CREATE TABLE section_instructors (
+  section_id INT NOT NULL REFERENCES sections(id),
+  instructor_id INT NOT NULL REFERENCES users(id),
+  PRIMARY KEY (section_id, instructor_id)
 );
 
 CREATE TABLE sections (

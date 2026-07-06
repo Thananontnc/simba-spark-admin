@@ -78,7 +78,7 @@ function EditModal({ sec, timeframes, onClose, onSuccess }: { sec: Section; time
   );
 }
 
-function BulkEnrollModal({ sec, available, onClose, onSuccess }: { sec: Section; available: User[]; onClose: () => void; onSuccess: () => void }) {
+function BulkEnrollModal({ sec, available, onClose, onSuccess }: { sec: Section; available: User[]; onClose: () => void; onSuccess: (msg: string) => void }) {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [pending, startTransition] = useTransition();
   const router = useRouter();
@@ -93,8 +93,19 @@ function BulkEnrollModal({ sec, available, onClose, onSuccess }: { sec: Section;
       const fd = new FormData();
       fd.append('section_id', String(sec.id));
       selected.forEach(id => fd.append('student_ids[]', String(id)));
-      await bulkEnrollStudents(fd);
-      router.refresh(); onSuccess(); onClose();
+      const result = await bulkEnrollStudents(fd);
+      router.refresh();
+      if (result && 'enrolled' in result) {
+        const enrolled = result.enrolled as number;
+        const skipped = (result.skipped as number | undefined) ?? 0;
+        const msg = skipped > 0
+          ? `Enrolled ${enrolled} student${enrolled !== 1 ? 's' : ''}. ${skipped} skipped (block conflict).`
+          : `Enrolled ${enrolled} student${enrolled !== 1 ? 's' : ''}.`;
+        onSuccess(msg);
+      } else {
+        onSuccess('Students enrolled.');
+      }
+      onClose();
     });
   }
 
@@ -144,6 +155,10 @@ function SectionRow({ sec, enrolled, available, instructors, timeframes, onDelet
   onDelete: (s: Section) => void; onEdit: (s: Section) => void; onBulkEnroll: (s: Section) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [enrollError, setEnrollError] = useState('');
+  const [enrollPending, startEnroll] = useTransition();
+  const [unenrollPending, startUnenroll] = useTransition();
+  const router = useRouter();
 
   const noInstructor = !sec.instructor_id;
   const noStudents = sec.enrolled_count === 0;
@@ -209,23 +224,49 @@ function SectionRow({ sec, enrolled, available, instructors, timeframes, onDelet
                 </button>
               )}
             </div>
-            <form action={async (fd: FormData) => { await enrollStudent(fd); }} className="flex gap-2 mb-3 max-w-sm">
+            <form className="flex gap-2 mb-1 max-w-sm" onSubmit={e => {
+              e.preventDefault();
+              setEnrollError('');
+              const fd = new FormData(e.currentTarget);
+              if (!fd.get('student_id')) return;
+              startEnroll(async () => {
+                const result = await enrollStudent(fd);
+                if (result?.error) { setEnrollError(result.error); return; }
+                router.refresh();
+                (e.target as HTMLFormElement).reset();
+              });
+            }}>
               <input type="hidden" name="section_id" value={sec.id} />
               <select name="student_id" className="flex-1 input-premium">
                 <option value="">Add student…</option>
                 {available.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
               </select>
-              <button type="submit" className="px-3 py-2 rounded-xl text-xs font-medium btn-primary">Enroll</button>
+              <button type="submit" disabled={enrollPending} className="px-3 py-2 rounded-xl text-xs font-medium btn-primary"
+                style={{ opacity: enrollPending ? 0.6 : 1 }}>
+                {enrollPending ? '…' : 'Enroll'}
+              </button>
             </form>
+            {enrollError && (
+              <p className="text-xs rounded-lg px-3 py-1.5 mb-2 max-w-sm"
+                style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }}>
+                {enrollError}
+              </p>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5 overflow-y-auto" style={{ maxHeight: '200px' }}>
               {enrolled.map(e => (
                 <div key={e.student_id} className="flex items-center justify-between px-2.5 py-1.5 rounded-lg" style={{ background: 'var(--subtle)' }}>
                   <span className="text-xs truncate mr-2" style={{ color: 'var(--tx)' }}>{e.student_name}</span>
-                  <form action={async (fd: FormData) => { await unenrollStudent(fd); }} className="shrink-0">
-                    <input type="hidden" name="section_id" value={sec.id} />
-                    <input type="hidden" name="student_id" value={e.student_id} />
-                    <button type="submit" className="text-[11px] font-medium px-2 py-0.5 rounded btn-danger">Remove</button>
-                  </form>
+                  <button type="button" disabled={unenrollPending}
+                    className="text-[11px] font-medium px-2 py-0.5 rounded btn-danger shrink-0"
+                    style={{ opacity: unenrollPending ? 0.6 : 1 }}
+                    onClick={() => {
+                      const fd = new FormData();
+                      fd.append('section_id', String(sec.id));
+                      fd.append('student_id', String(e.student_id));
+                      startUnenroll(async () => { await unenrollStudent(fd); router.refresh(); });
+                    }}>
+                    Remove
+                  </button>
                 </div>
               ))}
               {enrolled.length === 0 && <p className="text-xs italic col-span-3 px-1" style={{ color: 'var(--tx-3)' }}>No students enrolled.</p>}
@@ -245,7 +286,7 @@ export default function CoursesClient({ sections, instructors, students, enrollm
   const [editing, setEditing] = useState<Section | null>(null);
   const [bulkTarget, setBulkTarget] = useState<Section | null>(null);
   const [deletePending, startDelete] = useTransition();
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const router = useRouter();
 
   function confirmDelete() {
@@ -253,7 +294,7 @@ export default function CoursesClient({ sections, instructors, students, enrollm
     startDelete(async () => {
       const fd = new FormData(); fd.append('id', String(deleting.id));
       const result = await deleteSection(fd);
-      setToast(result?.error ?? 'Section deleted.');
+      setToast(result?.error ? { message: result.error, type: 'error' } : { message: 'Section deleted.', type: 'success' });
       setDeleting(null); router.refresh();
     });
   }
@@ -263,10 +304,10 @@ export default function CoursesClient({ sections, instructors, students, enrollm
 
   return (
     <>
-      {toast && <Toast message={toast} type={toast.includes('deleted') || toast.includes('Enrolled') ? 'success' : 'error'} onDone={() => setToast(null)} />}
+      {toast && <Toast message={toast.message} type={toast.type} onDone={() => setToast(null)} />}
       {deleting && <DeleteModal name={`${deleting.course_name} — ${deleting.section_number}`} onClose={() => setDeleting(null)} onConfirm={confirmDelete} pending={deletePending} />}
-      {editing && <EditModal sec={editing} timeframes={timeframes} onClose={() => setEditing(null)} onSuccess={() => setToast('Section updated.')} />}
-      {bulkTarget && <BulkEnrollModal sec={bulkTarget} available={students.filter(u => !enrollments.find(e => e.section_id === bulkTarget.id && e.student_id === u.id))} onClose={() => setBulkTarget(null)} onSuccess={() => setToast('Students enrolled.')} />}
+      {editing && <EditModal sec={editing} timeframes={timeframes} onClose={() => setEditing(null)} onSuccess={() => setToast({ message: 'Section updated.', type: 'success' })} />}
+      {bulkTarget && <BulkEnrollModal sec={bulkTarget} available={students.filter(u => !enrollments.find(e => e.section_id === bulkTarget.id && e.student_id === u.id))} onClose={() => setBulkTarget(null)} onSuccess={(msg) => setToast({ message: msg, type: 'success' })} />}
 
       {(noInstructorCount > 0 || noStudentCount > 0) && (
         <div className="rounded-xl px-4 py-3 mb-4 flex items-start gap-3" style={{ background: 'rgba(245,132,31,0.07)', border: '1px solid rgba(245,132,31,0.2)' }}>

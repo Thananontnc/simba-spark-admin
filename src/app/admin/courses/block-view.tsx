@@ -1,17 +1,20 @@
 'use client';
 
 import { useState, useEffect, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   addSectionInstructorSilent,
   removeSectionInstructorSilent,
   enrollStudentSilent,
   unenrollStudentSilent,
   deleteSectionSilent,
+  deleteTimeframeCascade,
 } from '@/app/actions/admin';
 import CreateSectionForm from './create-section-form';
 
 type Course     = { id: number; course_name: string; course_code: string; credits: number };
-type Timeframe  = { id: number; label: string; start_date: string; end_date: string };
+type Timeframe  = { id: number; label: string; start_date: string; end_date: string; semester_id: number | null };
+type Semester   = { id: number; name: string };
 type Instructor = { id: number; full_name: string };
 type Student    = { id: number; full_name: string };
 type Enrollment = { section_id: number; student_id: number; student_name: string };
@@ -25,6 +28,7 @@ type Section = {
 
 type Props = {
   sections: Section[]; courses: Course[]; timeframes: Timeframe[];
+  semesters: Semester[];
   instructors: Instructor[]; students: Student[]; enrollments: Enrollment[];
 };
 
@@ -62,12 +66,25 @@ function SectionCard({
     if (!inst) return;
     setInstructors(prev => [...prev, inst]);
     if (sel) sel.value = '';
-    startMutation(() => addSectionInstructorSilent(sec.id, id));
+    startMutation(async () => {
+      const result = await addSectionInstructorSilent(sec.id, id);
+      if (result?.error) {
+        setInstructors(prev => prev.filter(i => i.id !== id));
+        alert(result.error);
+      }
+    });
   }
 
   function handleRemoveInstructor(instructorId: number) {
     setInstructors(prev => prev.filter(i => i.id !== instructorId));
-    startMutation(() => removeSectionInstructorSilent(sec.id, instructorId));
+    startMutation(async () => {
+      const result = await removeSectionInstructorSilent(sec.id, instructorId);
+      if (result?.error) {
+        const inst = allInstructors.find(i => i.id === instructorId);
+        if (inst) setInstructors(prev => [...prev, inst]);
+        alert(result.error);
+      }
+    });
   }
 
   function handleEnrollStudent(e: React.FormEvent<HTMLFormElement>) {
@@ -229,15 +246,25 @@ function SectionCard({
   );
 }
 
-export default function BlockView({ sections, courses, timeframes, instructors, students, enrollments }: Props) {
-  const [selectedTf, setSelectedTf] = useState<number | null>(timeframes[0]?.id ?? null);
+export default function BlockView({ sections, courses, timeframes, semesters, instructors, students, enrollments }: Props) {
+  const router = useRouter();
+  const firstSem = semesters[0]?.id ?? null;
+  const [selectedSem, setSelectedSem] = useState<number | null>(firstSem);
+
+  // Blocks visible in the selected semester (or all if no semesters defined)
+  const visibleTimeframes = selectedSem === null
+    ? timeframes
+    : timeframes.filter(tf => tf.semester_id === selectedSem);
+
+  const [selectedTf, setSelectedTf] = useState<number | null>(visibleTimeframes[0]?.id ?? null);
   const [showAddForm, setShowAddForm] = useState(false);
   // Derive from props (always fresh after revalidation) minus optimistic deletions,
   // instead of copying props into state once and going stale.
   const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
+  const [deletingBlock, startBlockDelete] = useTransition();
   const localSections = sections.filter(s => !deletedIds.has(s.id));
 
-  const currentTf = timeframes.find(tf => tf.id === selectedTf);
+  const currentTf = visibleTimeframes.find(tf => tf.id === selectedTf);
   const blockSections = selectedTf === null
     ? localSections.filter(s => !s.timeframe_id)
     : localSections.filter(s => s.timeframe_id === selectedTf);
@@ -249,13 +276,71 @@ export default function BlockView({ sections, courses, timeframes, instructors, 
     setDeletedIds(prev => new Set(prev).add(id));
   }
 
+  function handleDeleteBlock() {
+    if (!currentTf) return;
+    const n = blockSections.length;
+    const detail = n > 0
+      ? `\n\nThis also deletes its ${n} section${n !== 1 ? 's' : ''} with all enrollments and bookings.`
+      : '';
+    if (!confirm(`Delete ${currentTf.label}?${detail}\n\nThis cannot be undone.`)) return;
+    startBlockDelete(async () => {
+      const fd = new FormData();
+      fd.append('id', String(currentTf.id));
+      const result = await deleteTimeframeCascade(fd);
+      if (result?.error) { alert(result.error); return; }
+      setSelectedTf(visibleTimeframes.find(tf => tf.id !== currentTf.id)?.id ?? null);
+      router.refresh();
+    });
+  }
+
   return (
     <div>
+      {/* Semester selector */}
+      {semesters.length > 0 && (
+        <div className="mb-5">
+          <p className="text-[10px] font-semibold uppercase tracking-widest mb-2" style={{ color: 'var(--tx-3)' }}>Semester</p>
+          <div className="flex gap-2 flex-wrap">
+            {semesters.map(sem => {
+              const active = selectedSem === sem.id;
+              return (
+                <button key={sem.id}
+                  onClick={() => {
+                    setSelectedSem(sem.id);
+                    const first = timeframes.find(tf => tf.semester_id === sem.id);
+                    setSelectedTf(first?.id ?? null);
+                    setShowAddForm(false);
+                  }}
+                  className="px-4 py-2 rounded-xl text-xs font-bold transition-all"
+                  style={{
+                    background: active ? 'var(--tx)' : 'var(--surface)',
+                    color: active ? 'var(--bg)' : 'var(--tx-2)',
+                    border: `1px solid ${active ? 'var(--tx)' : 'var(--border)'}`,
+                    boxShadow: active ? 'var(--shadow)' : 'var(--shadow-sm)',
+                  }}>
+                  {sem.name}
+                </button>
+              );
+            })}
+            <button
+              onClick={() => { setSelectedSem(null); setSelectedTf(timeframes[0]?.id ?? null); setShowAddForm(false); }}
+              className="px-4 py-2 rounded-xl text-xs font-bold transition-all"
+              style={{
+                background: selectedSem === null ? 'var(--tx)' : 'var(--surface)',
+                color: selectedSem === null ? 'var(--bg)' : 'var(--tx-2)',
+                border: `1px solid ${selectedSem === null ? 'var(--tx)' : 'var(--border)'}`,
+                boxShadow: 'var(--shadow-sm)',
+              }}>
+              All
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Block selector */}
       <div className="mb-6">
         <p className="text-[10px] font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--tx-3)' }}>Select Block</p>
         <div className="flex gap-2 flex-wrap">
-          {timeframes.map(tf => {
+          {visibleTimeframes.map(tf => {
             const active = selectedTf === tf.id;
             return (
               <button key={tf.id} onClick={() => { setSelectedTf(tf.id); setShowAddForm(false); }}
@@ -296,11 +381,21 @@ export default function BlockView({ sections, courses, timeframes, instructors, 
             {currentTf ? ` · ${fmtDate(currentTf.start_date)} – ${fmtDate(currentTf.end_date)}` : ''}
           </p>
         </div>
-        <button onClick={() => setShowAddForm(v => !v)}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium btn-primary">
-          <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-          {showAddForm ? 'Cancel' : 'Add Section'}
-        </button>
+        <div className="flex items-center gap-2">
+          {currentTf && (
+            <button onClick={handleDeleteBlock} disabled={deletingBlock}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium btn-danger"
+              style={{ opacity: deletingBlock ? 0.6 : 1 }}>
+              <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              {deletingBlock ? 'Deleting…' : 'Delete Block'}
+            </button>
+          )}
+          <button onClick={() => setShowAddForm(v => !v)}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium btn-primary">
+            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            {showAddForm ? 'Cancel' : 'Add Section'}
+          </button>
+        </div>
       </div>
 
       {showAddForm && (

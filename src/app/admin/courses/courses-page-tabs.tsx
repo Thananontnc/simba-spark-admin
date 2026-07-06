@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import CoursesClient from './courses-client';
 import TimetableView from './timetable-view';
 import BlockView from './block-view';
@@ -15,7 +16,8 @@ type SectionWithInstructors = {
   instructors: { id: number; full_name: string }[];
 };
 type LegacySection = SectionWithInstructors & { instructor_id: number | null; instructor_name: string | null };
-type Timeframe = { id: number; label: string; start_date: string; end_date: string };
+type Timeframe = { id: number; label: string; start_date: string; end_date: string; semester_id: number | null };
+type Semester  = { id: number; name: string };
 type User      = { id: number; full_name: string };
 type Enrollment = { section_id: number; student_id: number; student_name: string };
 type TimetableBooking = {
@@ -27,6 +29,7 @@ type Props = {
   sections: SectionWithInstructors[];
   courses: Course[];
   timeframes: Timeframe[];
+  semesters: Semester[];
   instructors: User[];
   students: User[];
   enrollments: Enrollment[];
@@ -71,8 +74,25 @@ const TAB_DESC: Record<TabId, string> = {
   catalog:  'Course catalog — create, rename, and delete courses.',
 };
 
-export default function CoursesPageTabs({ sections, courses, timeframes, instructors, students, enrollments, bookings }: Props) {
+export default function CoursesPageTabs({ sections, courses, timeframes, semesters, instructors, students, enrollments, bookings }: Props) {
   const [tab, setTab] = useState<TabId>('semester');
+  const router = useRouter();
+
+  // Refresh server data on mount so that navigating away and back always
+  // shows current DB state — the Next.js router cache can serve a stale
+  // RSC payload that predates silent block-view mutations.
+  useEffect(() => {
+    router.refresh();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function switchTab(id: TabId) {
+    setTab(id);
+    // Silent mutations skip revalidation; refresh after a brief delay so any
+    // in-flight DB writes (optimistic actions) finish before we re-fetch,
+    // otherwise the server can return stale data that wipes optimistic state.
+    setTimeout(() => router.refresh(), 300);
+  }
 
   // CoursesClient expects legacy shape; adapt
   const legacySections: LegacySection[] = sections.map(s => ({
@@ -92,7 +112,7 @@ export default function CoursesPageTabs({ sections, courses, timeframes, instruc
         <div className="flex items-center gap-1 p-1 rounded-xl max-w-full overflow-x-auto"
           style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
           {TABS.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)}
+            <button key={t.id} onClick={() => switchTab(t.id)}
               className="flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium transition-all shrink-0 whitespace-nowrap"
               style={{
                 background: tab === t.id ? 'var(--accent)' : 'transparent',
@@ -106,48 +126,41 @@ export default function CoursesPageTabs({ sections, courses, timeframes, instruc
         </div>
       </div>
 
-      {tab === 'semester' && (
-        <div className="animate-fade-in">
-          <SemesterGrid sections={sections} timeframes={timeframes} />
-        </div>
-      )}
+      {/* Panels stay mounted (hidden with CSS) so optimistic client state
+          survives tab switches — unmounting reverted fresh adds to stale props. */}
+      <div className={tab === 'semester' ? 'animate-fade-in' : 'hidden'}>
+        <SemesterGrid sections={sections} timeframes={timeframes} />
+      </div>
 
-      {tab === 'blocks' && (
-        <div className="animate-fade-in">
-          <BlockView
-            sections={sections}
-            courses={courses}
-            timeframes={timeframes}
-            instructors={instructors}
-            students={students}
-            enrollments={enrollments}
-          />
-        </div>
-      )}
+      <div className={tab === 'blocks' ? 'animate-fade-in' : 'hidden'}>
+        <BlockView
+          sections={sections}
+          courses={courses}
+          timeframes={timeframes}
+          semesters={semesters}
+          instructors={instructors}
+          students={students}
+          enrollments={enrollments}
+        />
+      </div>
 
-      {tab === 'sections' && (
-        <div className="animate-fade-in">
-          <CoursesClient
-            sections={legacySections as never}
-            instructors={instructors}
-            students={students}
-            enrollments={enrollments}
-            timeframes={timeframes}
-          />
-        </div>
-      )}
+      <div className={tab === 'sections' ? 'animate-fade-in' : 'hidden'}>
+        <CoursesClient
+          sections={legacySections as never}
+          instructors={instructors}
+          students={students}
+          enrollments={enrollments}
+          timeframes={timeframes}
+        />
+      </div>
 
-      {tab === 'schedule' && (
-        <div className="animate-fade-in">
-          <TimetableView bookings={bookings} />
-        </div>
-      )}
+      <div className={tab === 'schedule' ? 'animate-fade-in' : 'hidden'}>
+        <TimetableView bookings={bookings} />
+      </div>
 
-      {tab === 'catalog' && (
-        <div className="animate-fade-in">
-          <CoursesManager courses={courses} sections={sections} />
-        </div>
-      )}
+      <div className={tab === 'catalog' ? 'animate-fade-in' : 'hidden'}>
+        <CoursesManager courses={courses} sections={sections} />
+      </div>
     </div>
   );
 }

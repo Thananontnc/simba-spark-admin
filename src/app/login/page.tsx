@@ -25,7 +25,11 @@ export default function LoginPage() {
     const res = await fetch('/api/auth/session');
     const session = await res.json();
     const role = session?.user?.role;
-    router.push(role === 'admin' ? '/admin' : role === 'instructor' ? '/instructor' : '/student');
+    if (role === 'admin') {
+      router.push('/admin');
+    } else {
+      setError('This portal is for administrators only. Please contact your admin.');
+    }
   }
 
   return (
@@ -35,7 +39,7 @@ export default function LoginPage() {
       <div className="w-full max-w-xs">
         {/* Logo */}
         <div className="text-center mb-8">
-          <Image src="/simba-logo.webp" alt="AU Simba" width={88} height={88} className="mx-auto mb-3" priority />
+          <Image src="/simba-logo.webp" alt="Simba Spark" width={88} height={88} className="mx-auto mb-3" priority />
           <p className="text-xs" style={{ color: 'var(--tx-2)' }}>Block Course Scheduling</p>
         </div>
 

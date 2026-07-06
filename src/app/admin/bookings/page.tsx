@@ -14,12 +14,13 @@ export default async function BookingsPage() {
   const [bookings, sections] = await Promise.all([
     sql`
       SELECT b.id, c.course_name, c.course_code, s.section_number,
-        u.full_name AS instructor_name,
+        (SELECT STRING_AGG(u2.full_name, ', ' ORDER BY u2.full_name)
+         FROM section_instructors si2 JOIN users u2 ON u2.id = si2.instructor_id
+         WHERE si2.section_id = s.id) AS instructor_name,
         b.date::text, b.start_time::text, b.end_time::text, b.room
       FROM bookings b
       JOIN sections s ON s.id = b.section_id
       JOIN courses c ON c.id = s.course_id
-      LEFT JOIN users u ON u.id = s.instructor_id
       ORDER BY b.date DESC, b.start_time DESC
     ` as Promise<Booking[]>,
     sql`

@@ -5,7 +5,28 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 
-const NAV = [
+const NAV_SETUP = [
+  {
+    href: '/admin/users',
+    label: 'Users',
+    step: '1',
+    icon: <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+  },
+  {
+    href: '/admin/timeframes',
+    label: 'Semesters',
+    step: '2',
+    icon: <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+  },
+  {
+    href: '/admin/courses',
+    label: 'Courses & Sections',
+    step: '3',
+    icon: <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
+  },
+];
+
+const NAV_MANAGE = [
   {
     href: '/admin',
     label: 'Dashboard',
@@ -13,23 +34,9 @@ const NAV = [
     icon: <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>,
   },
   {
-    href: '/admin/users',
-    label: 'Users',
-    icon: <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
-  },
-  {
-    href: '/admin/timeframes',
-    label: 'Timeframes',
-    icon: <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
-  },
-  {
-    href: '/admin/courses',
-    label: 'Courses & Sections',
-    icon: <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
-  },
-  {
     href: '/admin/bookings',
     label: 'Bookings',
+    exact: false,
     icon: <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="8" y2="14"/><line x1="12" y1="14" x2="12" y2="14"/><line x1="16" y1="14" x2="16" y2="14"/></svg>,
   },
 ];
@@ -49,8 +56,8 @@ export default function Sidebar({ userName, userEmail, signOutAction }: Props) {
 
   const initials = userName ? userName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : 'A';
 
-  function isActive(item: typeof NAV[number]) {
-    return item.exact ? pathname === item.href : pathname.startsWith(item.href);
+  function isActive(href: string, exact = false) {
+    return exact ? pathname === href : pathname.startsWith(href);
   }
 
   const sidebarContent = (
@@ -93,20 +100,40 @@ export default function Sidebar({ userName, userEmail, signOutAction }: Props) {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-2 py-1 space-y-0.5 overflow-y-auto">
+      <nav className="flex-1 px-2 py-1 overflow-y-auto">
+
+        {/* Manage */}
         <p className="px-3 pb-1.5 pt-2 text-[10px] font-semibold uppercase tracking-widest"
-          style={{ color: 'var(--sidebar-label)' }}>Menu</p>
-        {NAV.map((item) => {
-          const active = isActive(item);
+          style={{ color: 'var(--sidebar-label)' }}>Overview</p>
+        {NAV_MANAGE.map(item => {
+          const active = isActive(item.href, item.exact);
           return (
             <Link key={item.href} href={item.href}
               className={`sidebar-link ${active ? 'sidebar-link-active' : ''}`}>
               <span className="sidebar-icon">{item.icon}</span>
               <span className="text-[13px]">{item.label}</span>
-              {active && (
-                <span className="ml-auto w-1.5 h-1.5 rounded-full shrink-0"
-                  style={{ background: 'var(--accent)' }} />
-              )}
+              {active && <span className="ml-auto w-1.5 h-1.5 rounded-full shrink-0" style={{ background: 'var(--accent)' }} />}
+            </Link>
+          );
+        })}
+
+        {/* Setup — numbered steps */}
+        <p className="px-3 pb-1.5 pt-3 text-[10px] font-semibold uppercase tracking-widest"
+          style={{ color: 'var(--sidebar-label)' }}>Setup</p>
+        {NAV_SETUP.map(item => {
+          const active = isActive(item.href);
+          return (
+            <Link key={item.href} href={item.href}
+              className={`sidebar-link ${active ? 'sidebar-link-active' : ''}`}>
+              <span className="sidebar-icon">{item.icon}</span>
+              <span className="text-[13px] flex-1">{item.label}</span>
+              <span className="text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shrink-0"
+                style={{
+                  background: active ? 'rgba(255,255,255,0.25)' : 'var(--sidebar-hover)',
+                  color: active ? '#fff' : 'var(--sidebar-tx-3)',
+                }}>
+                {item.step}
+              </span>
             </Link>
           );
         })}

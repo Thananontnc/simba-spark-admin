@@ -1,8 +1,9 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import sql from '@/lib/db';
+import sql, { withTransaction } from '@/lib/db';
 import { auth } from '@/auth';
+import bcrypt from 'bcrypt';
 
 // Server actions are public HTTP endpoints — proxy.ts only guards pages.
 // Every action must verify the caller is an admin.
@@ -58,20 +59,20 @@ export async function updateUser(formData: FormData) {
 }
 
 export async function deleteUser(formData: FormData) {
-  await requireAdmin();
+  const session = await requireAdmin();
   const id = parseInt(formData.get('id') as string);
 
-  const session = await auth();
   if (session?.user?.id && parseInt(session.user.id) === id) {
     return { error: 'You cannot delete your own account.' };
   }
 
   try {
-    // Clean references so the delete never hits a FK violation.
-    await sql`DELETE FROM enrollments WHERE student_id = ${id}`;
-    await sql`DELETE FROM section_instructors WHERE instructor_id = ${id}`;
-    await sql`UPDATE sections SET instructor_id = NULL WHERE instructor_id = ${id}`;
-    await sql`DELETE FROM users WHERE id = ${id}`;
+    await withTransaction(async (txSql) => {
+      await txSql`DELETE FROM enrollments WHERE student_id = ${id}`;
+      await txSql`DELETE FROM section_instructors WHERE instructor_id = ${id}`;
+      await txSql`UPDATE sections SET instructor_id = NULL WHERE instructor_id = ${id}`;
+      await txSql`DELETE FROM users WHERE id = ${id}`;
+    });
   } catch {
     return { error: 'Failed to delete user.' };
   }
@@ -79,7 +80,75 @@ export async function deleteUser(formData: FormData) {
   return { success: true };
 }
 
-// ── A3: Timeframes ───────────────────────────────────────────────────────────
+export async function adminResetPassword(formData: FormData) {
+  await requireAdmin();
+  const id = parseInt(formData.get('id') as string);
+  const newPassword = formData.get('new_password') as string;
+
+  if (!newPassword || newPassword.length < 8) {
+    return { error: 'Password must be at least 8 characters.' };
+  }
+
+  const hash = await bcrypt.hash(newPassword, 10);
+  try {
+    await sql`UPDATE users SET password_hash = ${hash}, is_authorized = true WHERE id = ${id}`;
+  } catch {
+    return { error: 'Failed to reset password.' };
+  }
+  revalidatePath('/admin/users');
+  return { success: true };
+}
+
+// ── A3: Semesters ────────────────────────────────────────────────────────────
+
+export async function createSemester(formData: FormData) {
+  await requireAdmin();
+  const name = (formData.get('name') as string)?.trim();
+  if (!name) return { error: 'Semester name is required.' };
+  try {
+    await sql`INSERT INTO semesters (name) VALUES (${name})`;
+  } catch (e: unknown) {
+    const err = e as { code?: string };
+    if (err.code === '23505') return { error: 'Semester name already exists.' };
+    return { error: 'Failed to create semester.' };
+  }
+  revalidatePath('/admin/timeframes');
+  return { success: true };
+}
+
+export async function updateSemester(formData: FormData) {
+  await requireAdmin();
+  const id = parseInt(formData.get('id') as string);
+  const name = (formData.get('name') as string)?.trim();
+  if (!name) return { error: 'Semester name is required.' };
+  try {
+    await sql`UPDATE semesters SET name = ${name} WHERE id = ${id}`;
+  } catch (e: unknown) {
+    const err = e as { code?: string };
+    if (err.code === '23505') return { error: 'Semester name already exists.' };
+    return { error: 'Failed to update semester.' };
+  }
+  revalidatePath('/admin/timeframes');
+  revalidatePath('/admin/courses');
+  return { success: true };
+}
+
+export async function deleteSemester(formData: FormData) {
+  await requireAdmin();
+  const id = parseInt(formData.get('id') as string);
+  const blocks = await sql`SELECT id, label FROM timeframes WHERE semester_id = ${id}`;
+  if (blocks.length > 0) {
+    const names = blocks.slice(0, 3).map((b: { label: string }) => b.label).join(', ');
+    const more = blocks.length > 3 ? ` and ${blocks.length - 3} more` : '';
+    return { error: `Contains blocks: ${names}${more}. Delete or reassign them first.` };
+  }
+  await sql`DELETE FROM semesters WHERE id = ${id}`;
+  revalidatePath('/admin/timeframes');
+  revalidatePath('/admin/courses');
+  return { success: true };
+}
+
+// ── A4: Timeframes ───────────────────────────────────────────────────────────
 
 async function validateTimeframe(label: string, start_date: string, end_date: string, excludeId?: number) {
   if (!label?.trim()) return 'Label is required.';
@@ -103,13 +172,14 @@ export async function createTimeframe(formData: FormData) {
   const label = formData.get('label') as string;
   const start_date = formData.get('start_date') as string;
   const end_date = formData.get('end_date') as string;
+  const semester_id = formData.get('semester_id') as string;
 
   const invalid = await validateTimeframe(label, start_date, end_date);
   if (invalid) return { error: invalid };
 
   await sql`
-    INSERT INTO timeframes (label, start_date, end_date)
-    VALUES (${label}, ${start_date}, ${end_date})
+    INSERT INTO timeframes (label, start_date, end_date, semester_id)
+    VALUES (${label}, ${start_date}, ${end_date}, ${semester_id ? parseInt(semester_id) : null})
   `;
   revalidatePath('/admin/timeframes');
   revalidatePath('/admin/courses');
@@ -122,12 +192,14 @@ export async function updateTimeframe(formData: FormData) {
   const label = formData.get('label') as string;
   const start_date = formData.get('start_date') as string;
   const end_date = formData.get('end_date') as string;
+  const semester_id = formData.get('semester_id') as string;
 
   const invalid = await validateTimeframe(label, start_date, end_date, id);
   if (invalid) return { error: invalid };
 
   await sql`
-    UPDATE timeframes SET label = ${label}, start_date = ${start_date}, end_date = ${end_date}
+    UPDATE timeframes SET label = ${label}, start_date = ${start_date}, end_date = ${end_date},
+      semester_id = ${semester_id ? parseInt(semester_id) : null}
     WHERE id = ${id}
   `;
   revalidatePath('/admin/timeframes');
@@ -151,6 +223,27 @@ export async function deleteTimeframe(formData: FormData) {
   }
 
   await sql`DELETE FROM timeframes WHERE id = ${id}`;
+  revalidatePath('/admin/timeframes');
+  revalidatePath('/admin/courses');
+  return { success: true };
+}
+
+// Delete a block together with everything scheduled inside it.
+export async function deleteTimeframeCascade(formData: FormData) {
+  await requireAdmin();
+  const id = parseInt(formData.get('id') as string);
+
+  try {
+    await withTransaction(async (txSql) => {
+      await txSql`DELETE FROM bookings WHERE section_id IN (SELECT id FROM sections WHERE timeframe_id = ${id})`;
+      await txSql`DELETE FROM enrollments WHERE section_id IN (SELECT id FROM sections WHERE timeframe_id = ${id})`;
+      await txSql`DELETE FROM section_instructors WHERE section_id IN (SELECT id FROM sections WHERE timeframe_id = ${id})`;
+      await txSql`DELETE FROM sections WHERE timeframe_id = ${id}`;
+      await txSql`DELETE FROM timeframes WHERE id = ${id}`;
+    });
+  } catch {
+    return { error: 'Failed to delete block.' };
+  }
   revalidatePath('/admin/timeframes');
   revalidatePath('/admin/courses');
   return { success: true };
@@ -287,11 +380,12 @@ export async function deleteSection(formData: FormData) {
   await requireAdmin();
   const id = parseInt(formData.get('id') as string);
   try {
-    // Child rows reference sections without ON DELETE CASCADE — remove them first.
-    await sql`DELETE FROM bookings WHERE section_id = ${id}`;
-    await sql`DELETE FROM enrollments WHERE section_id = ${id}`;
-    await sql`DELETE FROM section_instructors WHERE section_id = ${id}`;
-    await sql`DELETE FROM sections WHERE id = ${id}`;
+    await withTransaction(async (txSql) => {
+      await txSql`DELETE FROM bookings WHERE section_id = ${id}`;
+      await txSql`DELETE FROM enrollments WHERE section_id = ${id}`;
+      await txSql`DELETE FROM section_instructors WHERE section_id = ${id}`;
+      await txSql`DELETE FROM sections WHERE id = ${id}`;
+    });
   } catch {
     return { error: 'Failed to delete section.' };
   }
@@ -303,13 +397,23 @@ export async function deleteSection(formData: FormData) {
 
 export async function assignInstructor(formData: FormData) {
   await requireAdmin();
-  const section_id = formData.get('section_id') as string;
+  const section_id = parseInt(formData.get('section_id') as string);
   const instructor_id = formData.get('instructor_id') as string;
+  const iid = instructor_id ? parseInt(instructor_id) : null;
 
-  await sql`
-    UPDATE sections SET instructor_id = ${instructor_id ? parseInt(instructor_id) : null}
-    WHERE id = ${parseInt(section_id)}
-  `;
+  // Replace all instructors with the selected one (single-instructor assignment).
+  // Note: this replaces any multi-instructor setup made via Block View.
+  try {
+    await withTransaction(async (txSql) => {
+      await txSql`DELETE FROM section_instructors WHERE section_id = ${section_id}`;
+      if (iid) {
+        await txSql`INSERT INTO section_instructors (section_id, instructor_id) VALUES (${section_id}, ${iid}) ON CONFLICT DO NOTHING`;
+      }
+      await txSql`UPDATE sections SET instructor_id = ${iid} WHERE id = ${section_id}`;
+    });
+  } catch {
+    return { error: 'Failed to assign instructor.' };
+  }
   revalidatePath('/admin/courses');
   return { success: true };
 }
@@ -398,16 +502,26 @@ export async function unenrollStudent(formData: FormData) {
 
 export async function addSectionInstructorSilent(sectionId: number, instructorId: number) {
   await requireAdmin();
-  await sql`INSERT INTO section_instructors (section_id, instructor_id) VALUES (${sectionId}, ${instructorId}) ON CONFLICT DO NOTHING`;
-  await sql`UPDATE sections SET instructor_id = ${instructorId} WHERE id = ${sectionId} AND instructor_id IS NULL`;
+  try {
+    await sql`INSERT INTO section_instructors (section_id, instructor_id) VALUES (${sectionId}, ${instructorId}) ON CONFLICT DO NOTHING`;
+    await sql`UPDATE sections SET instructor_id = ${instructorId} WHERE id = ${sectionId} AND instructor_id IS NULL`;
+    return { success: true };
+  } catch {
+    return { error: 'Failed to add instructor.' };
+  }
 }
 
 export async function removeSectionInstructorSilent(sectionId: number, instructorId: number) {
   await requireAdmin();
-  await sql`DELETE FROM section_instructors WHERE section_id = ${sectionId} AND instructor_id = ${instructorId}`;
-  const remaining = await sql`SELECT instructor_id FROM section_instructors WHERE section_id = ${sectionId} LIMIT 1`;
-  const newPrimary = remaining[0]?.instructor_id ?? null;
-  await sql`UPDATE sections SET instructor_id = ${newPrimary} WHERE id = ${sectionId}`;
+  try {
+    await sql`DELETE FROM section_instructors WHERE section_id = ${sectionId} AND instructor_id = ${instructorId}`;
+    const remaining = await sql`SELECT instructor_id FROM section_instructors WHERE section_id = ${sectionId} LIMIT 1`;
+    const newPrimary = remaining[0]?.instructor_id ?? null;
+    await sql`UPDATE sections SET instructor_id = ${newPrimary} WHERE id = ${sectionId}`;
+    return { success: true };
+  } catch {
+    return { error: 'Failed to remove instructor.' };
+  }
 }
 
 export async function enrollStudentSilent(sectionId: number, studentId: number) {
@@ -426,10 +540,12 @@ export async function unenrollStudentSilent(sectionId: number, studentId: number
 export async function deleteSectionSilent(id: number) {
   await requireAdmin();
   try {
-    await sql`DELETE FROM bookings WHERE section_id = ${id}`;
-    await sql`DELETE FROM enrollments WHERE section_id = ${id}`;
-    await sql`DELETE FROM section_instructors WHERE section_id = ${id}`;
-    await sql`DELETE FROM sections WHERE id = ${id}`;
+    await withTransaction(async (txSql) => {
+      await txSql`DELETE FROM bookings WHERE section_id = ${id}`;
+      await txSql`DELETE FROM enrollments WHERE section_id = ${id}`;
+      await txSql`DELETE FROM section_instructors WHERE section_id = ${id}`;
+      await txSql`DELETE FROM sections WHERE id = ${id}`;
+    });
     return { success: true };
   } catch {
     return { success: false };

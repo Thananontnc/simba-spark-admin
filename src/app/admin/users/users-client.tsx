@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { createUser, updateUser, deleteUser, toggleAuthorized } from '@/app/actions/admin';
+import { createUser, updateUser, deleteUser, toggleAuthorized, adminResetPassword } from '@/app/actions/admin';
 import { Toast } from '@/components/toast';
 
 type User = { id: number; full_name: string; email: string; role: string; is_authorized: boolean };
@@ -89,6 +89,94 @@ function DeleteModal({ user, onClose, onConfirm, pending }: {
   );
 }
 
+function ResetPasswordModal({ user, onClose }: { user: User; onClose: () => void }) {
+  const [newPassword, setNewPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [error, setError] = useState('');
+  const [done, setDone] = useState(false);
+  const [pending, startTransition] = useTransition();
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    if (newPassword.length < 8) { setError('Password must be at least 8 characters.'); return; }
+    if (newPassword !== confirm) { setError('Passwords do not match.'); return; }
+    const fd = new FormData();
+    fd.append('id', String(user.id));
+    fd.append('new_password', newPassword);
+    startTransition(async () => {
+      const result = await adminResetPassword(fd);
+      if (result?.error) { setError(result.error); return; }
+      setDone(true);
+    });
+  }
+
+  return (
+    <Modal title="Reset Password" onClose={onClose}>
+      {done ? (
+        <div className="space-y-4">
+          <div className="rounded-xl p-4" style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)' }}>
+            <p className="text-xs font-medium mb-3" style={{ color: '#15803d' }}>Password updated. Share these credentials with the user:</p>
+            <div className="space-y-2">
+              <div>
+                <p className="text-[10px] font-medium mb-1" style={{ color: 'var(--tx-3)' }}>EMAIL</p>
+                <div className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: 'var(--subtle)', border: '1px solid var(--border)' }}>
+                  <span className="text-sm font-mono flex-1 select-all" style={{ color: 'var(--tx)' }}>{user.email}</span>
+                  <button type="button" onClick={() => navigator.clipboard.writeText(user.email)}
+                    className="text-xs px-2 py-0.5 rounded" style={{ color: 'var(--accent)', background: 'rgba(245,132,31,0.1)' }}>
+                    Copy
+                  </button>
+                </div>
+              </div>
+              <div>
+                <p className="text-[10px] font-medium mb-1" style={{ color: 'var(--tx-3)' }}>NEW PASSWORD</p>
+                <div className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: 'var(--subtle)', border: '1px solid var(--border)' }}>
+                  <span className="text-sm font-mono flex-1 select-all" style={{ color: 'var(--tx)' }}>{newPassword}</span>
+                  <button type="button" onClick={() => navigator.clipboard.writeText(newPassword)}
+                    className="text-xs px-2 py-0.5 rounded" style={{ color: 'var(--accent)', background: 'rgba(245,132,31,0.1)' }}>
+                    Copy
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-full py-2.5 rounded-xl text-sm font-medium btn-secondary">Close</button>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-3.5">
+          <div className="rounded-lg px-3 py-2.5 text-xs" style={{ background: 'var(--subtle)', border: '1px solid var(--border)', color: 'var(--tx-2)' }}>
+            Resetting password for <span className="font-semibold" style={{ color: 'var(--tx)' }}>{user.full_name}</span>
+            <span className="block mt-0.5 text-[11px]" style={{ color: 'var(--tx-3)' }}>{user.email}</span>
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--tx-2)' }}>New Password</label>
+            <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)}
+              placeholder="Min. 8 characters" className={inp} autoComplete="new-password" required />
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--tx-2)' }}>Confirm Password</label>
+            <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)}
+              placeholder="Repeat password" className={inp} autoComplete="new-password" required />
+          </div>
+          {error && (
+            <p className="text-xs rounded-lg px-3 py-2"
+              style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }}>
+              {error}
+            </p>
+          )}
+          <div className="flex gap-2 pt-1">
+            <button type="submit" disabled={pending}
+              className="flex-1 py-2.5 rounded-xl text-sm font-medium btn-primary">
+              {pending ? 'Saving…' : 'Reset Password'}
+            </button>
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl text-sm btn-secondary">Cancel</button>
+          </div>
+        </form>
+      )}
+    </Modal>
+  );
+}
+
 function UserForm({ defaultValues, hiddenId, onClose, action, onSuccess }: {
   defaultValues?: Partial<User>;
   hiddenId?: number;
@@ -150,6 +238,7 @@ export default function UsersPageClient({ users }: { users: User[] }) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<User | null>(null);
   const [deleting, setDeleting] = useState<User | null>(null);
+  const [resetting, setResetting] = useState<User | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [search, setSearch] = useState('');
@@ -183,6 +272,7 @@ export default function UsersPageClient({ users }: { users: User[] }) {
         <UserForm defaultValues={editing} hiddenId={editing.id} action={updateUser} onClose={() => setEditing(null)} onSuccess={() => setToast('User updated.')} />
       </Modal>}
       {deleting && <DeleteModal user={deleting} onClose={() => setDeleting(null)} onConfirm={confirmDelete} pending={pending} />}
+      {resetting && <ResetPasswordModal user={resetting} onClose={() => setResetting(null)} />}
 
       <div className="rounded-xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
         {/* Header */}
@@ -270,6 +360,11 @@ export default function UsersPageClient({ users }: { users: User[] }) {
                         style={{ background: 'var(--subtle)', color: 'var(--tx-2)', border: '1px solid var(--border)' }}>
                         Edit
                       </button>
+                      <button onClick={() => setResetting(u)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                        style={{ background: 'rgba(59,130,246,0.08)', color: '#2563eb', border: '1px solid rgba(59,130,246,0.18)' }}>
+                        Reset PW
+                      </button>
                       <button onClick={() => setDeleting(u)}
                         className="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
                         style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.15)' }}>
@@ -302,9 +397,14 @@ export default function UsersPageClient({ users }: { users: User[] }) {
                 </div>
                 <RolePill role={u.role} />
               </div>
-              <div className="flex gap-2 mt-3">
+              <div className="flex flex-wrap gap-2 mt-3">
                 <button onClick={() => setEditing(u)}
                   className="flex-1 py-2 rounded-xl text-xs font-medium btn-secondary">Edit</button>
+                <button onClick={() => setResetting(u)}
+                  className="flex-1 py-2 rounded-xl text-xs font-medium"
+                  style={{ background: 'rgba(59,130,246,0.08)', color: '#2563eb', border: '1px solid rgba(59,130,246,0.18)' }}>
+                  Reset PW
+                </button>
                 <form action={async (fd: FormData) => { await toggleAuthorized(fd); }} className="flex-1">
                   <input type="hidden" name="id" value={u.id} />
                   <input type="hidden" name="is_authorized" value={String(u.is_authorized)} />
